@@ -1,0 +1,108 @@
+<html>
+ <head>
+  <title>Apache Log Monitor</title>
+  <meta charset="utf-8">
+  <link href='https://api.mapbox.com/mapbox-gl-js/v2.3.1/mapbox-gl.css' rel='stylesheet' />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+  <style type="text/css">
+      body {
+        text-align: center;
+        background: #101014;
+        color: #fff;
+        font-weight: bold;
+      }
+
+      .mapboxgl-control-container {
+        display: none;
+      }
+  </style>
+ </head>
+ <body>
+  <h2>Apache Log Monitor</h2>
+  <h3>Last recent logs</h3>
+  <div id='map' style='width: 100%; height: 400px;'></div>
+  <table id="requeststable" class="table table-dark">
+  <thead>
+    <tr>
+      <th scope="col">IP</th>
+      <th scope="col">Date</th>
+      <th scope="col">Country</th>
+      <th scope="col">OS / Browser</th>
+      <th scope="col">Proxy</th>
+      <th scope="col">ISP</th>
+      <th scope="col">Request type</th>
+      <th scope="col">Risk</th>
+      <th scope="col">Action</th>
+    </tr>
+  </thead>
+  <tbody>
+  </tbody>
+  </table>
+  <script src="https://cdn.socket.io/4.4.1/socket.io.min.js" integrity="sha384-fKnu0iswBIqkjxrhQCTZ7qlLHOFEgNkRmK2vaO/LbTZSXdJfAu6ewRBdwHPhBo/H" crossorigin="anonymous"></script>
+  <script src='https://api.mapbox.com/mapbox-gl-js/v2.3.1/mapbox-gl.js'></script>
+  <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.7/dist/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script>
+   mapboxgl.accessToken = 'pk.eyJ1Ijoic2xpdHZhY2siLCJhIjoiY2wwZjAyZGhiMG02dzNrazk5dnlxbzlldyJ9.0neKsnUD9HlqHA206ZlORA';
+
+   var map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/dark-v9',
+    zoom: 2
+   });
+
+   var socket = io('http://localhost:8080');
+   socket.on('connect', function() {
+    console.log('Connected to the server');
+   });
+
+   socket.on('filechanged', function(newData) {
+    $("#requeststable").find('tbody').append($(newData.text));
+   });
+
+   socket.on('disconnect', function() {
+    console.log('Disconnected from the server');
+   });
+
+   socket.on('accessdenied', function(){
+    var rootpass = undefined;
+    rootpass = prompt('root password: ');
+    socket.emit('checkrootpassword', rootpass);
+   });
+
+   socket.on('sudoenabled', function() { 
+    var regex = /rootaccess=(.[^;]*)/ig;
+    var match = regex.exec(document.cookie);
+
+    if(!match){
+        const d = new Date();
+        d.setTime(d.getTime() + (30*24*60*60*1000));
+        let expires = "expires="+ d.toUTCString();
+        document.cookie =  "rootaccess=true;" + expires + ";path=/";
+    }
+   });
+
+   $(document).ready(function(){
+    var regex = /rootaccess=(.[^;]*)/ig;
+    var match = regex.exec(document.cookie);
+
+    if(!match){
+        rootpass = prompt('root password: ');
+        socket.emit('checkrootpassword', rootpass);
+    }
+   });
+
+   $('#requeststable').on('click', '#btnblock', function() {
+    var ip = $(this).closest("tr")[0].outerText.substr(0, $(this).closest("tr")[0].outerText.indexOf('\t'));
+    var regex = /rootaccess=(.[^;]*)/ig;
+    var logged = regex.exec(document.cookie);
+
+    if(logged){
+        socket.emit('blockipaction', { ip: ip });
+    }
+   });
+  </script>
+ </body>
+</html>
